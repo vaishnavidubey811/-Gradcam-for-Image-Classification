@@ -1,0 +1,7 @@
+tensorflow
+opencv-python
+matplotlib
+numpy
+flask
+pillow 
+# grad_cam_env\Scripts\activate  -- to activate environment
