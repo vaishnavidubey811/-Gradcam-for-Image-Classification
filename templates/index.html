@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grad-CAM Chest X-ray Analysis</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .input-section {
+            display: block;
+            margin-bottom: 40px;
+        }
+
+        .input-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 30px;
+            border: 2px dashed #dee2e6;
+            transition: all 0.3s ease;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .input-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .input-card h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+            text-align: center;
+        }
+
+        .file-upload {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-upload input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-upload-label {
+            display: block;
+            padding: 20px;
+            background: #667eea;
+            color: white;
+            text-align: center;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            font-weight: 500;
+        }
+
+        .file-upload-label:hover {
+            background: #5a6fd8;
+        }
+
+        .path-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+
+        .path-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .analyze-btn {
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .analyze-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(39, 174, 96, 0.3);
+        }
+
+        .analyze-btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results-section {
+            display: none;
+            margin-top: 40px;
+        }
+
+        .results-header {
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px 15px 0 0;
+            text-align: center;
+        }
+
+        .results-content {
+            background: white;
+            padding: 30px;
+            border-radius: 0 0 15px 15px;
+            border: 1px solid #dee2e6;
+        }
+
+        .prediction-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .info-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-card h4 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .info-card p {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #27ae60;
+        }
+
+        .gradcam-image {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .gradcam-image img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .error-message {
+            background: #e74c3c;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+            display: none;
+        }
+
+        .success-message {
+            background: #27ae60;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .input-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .main-content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Grad-CAM Chest X-ray Analysis</h1>
+            <p>Upload an X-ray image to analyze with Grad-CAM</p>
+        </div>
+
+        <div class="main-content">
+            <div class="input-section">
+                <!-- File Upload Section -->
+                <div class="input-card">
+                    <h3>📁 Upload Image</h3>
+                    <div class="file-upload">
+                        <input type="file" id="fileInput" accept="image/*">
+                        <label for="fileInput" class="file-upload-label">
+                            Choose an X-ray image file
+                        </label>
+                    </div>
+                    <button class="analyze-btn" onclick="analyzeUpload()" id="uploadBtn" disabled>
+                        Analyze Uploaded Image
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading Section -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Analyzing image with Grad-CAM...</p>
+            </div>
+
+            <!-- Error Message -->
+            <div class="error-message" id="errorMessage"></div>
+
+            <!-- Success Message -->
+            <div class="success-message" id="successMessage"></div>
+
+            <!-- Results Section -->
+            <div class="results-section" id="resultsSection">
+                <div class="results-header">
+                    <h2>Analysis Results</h2>
+                </div>
+                <div class="results-content">
+                    <div class="prediction-info">
+                        <div class="info-card">
+                            <h4>Filename</h4>
+                            <p id="resultFilename">-</p>
+                        </div>
+                        <div class="info-card">
+                            <h4>Prediction</h4>
+                            <p id="resultPrediction">-</p>
+                        </div>
+                        <div class="info-card">
+                            <h4>Confidence</h4>
+                            <p id="resultConfidence">-</p>
+                        </div>
+                    </div>
+                    <div class="gradcam-image">
+                        <img id="gradcamImage" src="" alt="Grad-CAM Analysis">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // File input handling
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const uploadBtn = document.getElementById('uploadBtn');
+            
+            if (file) {
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = `Analyze: ${file.name}`;
+            } else {
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = 'Analyze Uploaded Image';
+            }
+        });
+
+        // Analyze uploaded file
+        async function analyzeUpload() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showError('Please select a file first.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            await performAnalysis('/upload', formData, 'upload');
+        }
+
+        // Perform analysis
+        async function performAnalysis(endpoint, data, type) {
+            showLoading();
+            hideError();
+            hideSuccess();
+            hideResults();
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    body: type === 'upload' ? data : data,
+                    headers: type === 'path' ? {
+                        'Content-Type': 'application/json'
+                    } : {}
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showResults(result);
+                    showSuccess('Analysis completed successfully!');
+                } else {
+                    showError(result.error || 'Analysis failed.');
+                }
+            } catch (error) {
+                showError('Network error. Please try again.');
+                console.error('Error:', error);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // UI helper functions
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('errorMessage').style.display = 'none';
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+        }
+
+        function hideSuccess() {
+            document.getElementById('successMessage').style.display = 'none';
+        }
+
+        function showResults(result) {
+            document.getElementById('resultFilename').textContent = result.filename;
+            document.getElementById('resultPrediction').textContent = result.class_label;
+            document.getElementById('resultConfidence').textContent = result.confidence;
+            document.getElementById('gradcamImage').src = 'data:image/png;base64,' + result.image;
+            document.getElementById('resultsSection').style.display = 'block';
+        }
+
+        function hideResults() {
+            document.getElementById('resultsSection').style.display = 'none';
+        }
+    </script>
+</body>
+</html> 
